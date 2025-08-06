@@ -42,6 +42,20 @@ export default function SettingsPage() {
     email_notifications: booth?.email_notifications || true,
   });
 
+  // Update form data when booth data changes
+  useEffect(() => {
+    if (booth) {
+      setFormData({
+        couple_name: booth.couple_name,
+        wedding_date: booth.wedding_date,
+        email: booth.email,
+        is_public: booth.is_public,
+        requires_approval: booth.requires_approval,
+        email_notifications: booth.email_notifications,
+      });
+    }
+  }, [booth]);
+
   // Generate QR code when booth URL is available
   useEffect(() => {
     if (booth?.booth_code) {
@@ -311,11 +325,18 @@ export default function SettingsPage() {
 
             {/* Privacy Settings */}
             <div className="bg-card rounded-lg border border-border p-6">
-              <div className="flex items-center gap-2 mb-6">
-                <Shield className="w-5 h-5 text-foreground" />
-                <h2 className="text-lg font-semibold text-foreground">
-                  Privacy Settings
-                </h2>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-foreground" />
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Privacy Settings
+                  </h2>
+                </div>
+                {!isEditing && (
+                  <Button variant="outline" onClick={() => setIsEditing(true)}>
+                    Edit
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-6">
@@ -334,13 +355,14 @@ export default function SettingsPage() {
                       onCheckedChange={(checked) =>
                         setFormData((prev) => ({ ...prev, is_public: checked }))
                       }
+                      className="data-[state=unchecked]:bg-gray-300"
                     />
                   ) : (
                     <div className="flex items-center gap-2">
                       {booth.is_public ? (
                         <Eye className="w-4 h-4 text-green-600" />
                       ) : (
-                        <EyeOff className="w-4 h-4 text-muted-foreground" />
+                        <EyeOff className="w-4 h-4 text-gray-500" />
                       )}
                       <span className="text-sm text-muted-foreground">
                         {booth.is_public ? "Public" : "Private"}
@@ -367,6 +389,7 @@ export default function SettingsPage() {
                           requires_approval: checked,
                         }))
                       }
+                      className="data-[state=unchecked]:bg-gray-300"
                     />
                   ) : (
                     <div className="flex items-center gap-2">
@@ -402,13 +425,14 @@ export default function SettingsPage() {
                           email_notifications: checked,
                         }))
                       }
+                      className="data-[state=unchecked]:bg-gray-300"
                     />
                   ) : (
                     <div className="flex items-center gap-2">
                       {booth.email_notifications ? (
                         <Bell className="w-4 h-4 text-green-600" />
                       ) : (
-                        <Bell className="w-4 h-4 text-muted-foreground" />
+                        <Bell className="w-4 h-4 text-gray-500" />
                       )}
                       <span className="text-sm text-muted-foreground">
                         {booth.email_notifications ? "Enabled" : "Disabled"}
