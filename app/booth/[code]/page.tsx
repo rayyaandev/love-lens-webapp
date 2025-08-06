@@ -1,8 +1,17 @@
 "use client";
 
 import { usePublicBooth, usePublicSubmissions } from "@/queries/booth";
-import { Heart, Camera, Video, Send, Upload, X } from "lucide-react";
-import { useState, useRef } from "react";
+import {
+  Heart,
+  Camera,
+  Video,
+  Send,
+  Upload,
+  X,
+  Download,
+  Image as ImageIcon,
+} from "lucide-react";
+import { useState, useRef, use } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,20 +21,23 @@ import { toast } from "sonner";
 import Image from "next/image";
 
 interface BoothPageProps {
-  params: {
+  params: Promise<{
     code: string;
-  };
+  }>;
 }
 
 export default function BoothPage({ params }: BoothPageProps) {
+  const { code } = use(params);
+
   const {
     data: booth,
     isLoading: boothLoading,
     error: boothError,
-  } = usePublicBooth(params.code);
+  } = usePublicBooth(code);
   const { data: submissions } = usePublicSubmissions(booth?.id);
   const supabase = createClient();
 
+  const [activeTab, setActiveTab] = useState<"submit" | "gallery">("submit");
   const [formData, setFormData] = useState({
     guest_name: "",
     message: "",
@@ -171,6 +183,24 @@ export default function BoothPage({ params }: BoothPageProps) {
     }
   };
 
+  const downloadMedia = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success("Download started!");
+    } catch (error) {
+      toast.error("Failed to download file");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -202,8 +232,30 @@ export default function BoothPage({ params }: BoothPageProps) {
       </header>
 
       <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Upload Form */}
+        {/* Tab Navigation */}
+        <div className="flex space-x-1 bg-muted p-1 rounded-lg mb-8">
+          <Button
+            variant={activeTab === "submit" ? "default" : "ghost"}
+            onClick={() => setActiveTab("submit")}
+            className="flex-1"
+          >
+            <Send className="w-4 h-4 mr-2" />
+            Send Message
+          </Button>
+          {booth.is_public && (
+            <Button
+              variant={activeTab === "gallery" ? "default" : "ghost"}
+              onClick={() => setActiveTab("gallery")}
+              className="flex-1"
+            >
+              <ImageIcon className="w-4 h-4 mr-2" />
+              Photo Gallery
+            </Button>
+          )}
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === "submit" && (
           <div className="bg-card rounded-2xl border border-border p-8">
             <div className="bg-secondary rounded-t-2xl -mt-8 -mx-8 px-8 py-6 mb-6">
               <h3 className="text-xl font-serif text-center text-foreground mb-2">
@@ -334,55 +386,88 @@ export default function BoothPage({ params }: BoothPageProps) {
               </Button>
             </form>
           </div>
+        )}
 
-          {/* Public Gallery */}
-          {booth.is_public && submissions && submissions.length > 0 && (
-            <div className="bg-card rounded-2xl border border-border p-8">
-              <h3 className="text-xl font-semibold text-foreground mb-6">
-                Photo & Video Gallery
-              </h3>
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {submissions.slice(0, 10).map((submission) => (
+        {activeTab === "gallery" && booth.is_public && (
+          <div className="bg-card rounded-2xl border border-border p-8">
+            <h3 className="text-xl font-semibold text-foreground mb-6">
+              Photo & Video Gallery
+            </h3>
+            {submissions && submissions.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {submissions.map((submission) => (
                   <div
                     key={submission.id}
-                    className="border border-border rounded-lg p-4"
+                    className="bg-muted rounded-lg overflow-hidden border border-border"
                   >
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-medium text-foreground">
-                        {submission.guest_name || "Anonymous"}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(submission.created_at).toLocaleDateString()}
-                      </span>
-                      {submission.media_type && (
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                          {submission.media_type === "photo" ? "📷" : "🎥"}
-                        </span>
+                    {/* Media Display */}
+                    <div className="aspect-square relative group">
+                      {submission.media_type === "photo" ? (
+                        <Image
+                          src={submission.media_url!}
+                          alt={`Photo by ${submission.guest_name || "Anonymous"}`}
+                          width={300}
+                          height={300}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <video
+                          src={submission.media_url!}
+                          controls
+                          className="w-full h-full object-cover"
+                        />
                       )}
-                    </div>
-                    {submission.media_url && (
-                      <div className="mt-3">
-                        <a
-                          href={submission.media_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+
+                      {/* Download Overlay */}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            const filename = `${submission.guest_name || "anonymous"}-${submission.media_type}-${new Date(submission.created_at).toISOString().split("T")[0]}.${submission.media_url?.split(".").pop()}`;
+                            downloadMedia(submission.media_url!, filename);
+                          }}
                         >
-                          {submission.media_type === "photo" ? (
-                            <Camera className="w-3 h-3" />
-                          ) : (
-                            <Video className="w-3 h-3" />
-                          )}
-                          View {submission.media_type}
-                        </a>
+                          <Download className="w-4 h-4 mr-2" />
+                          Download
+                        </Button>
                       </div>
-                    )}
+                    </div>
+
+                    {/* Submission Info */}
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-foreground text-sm">
+                          {submission.guest_name || "Anonymous"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(submission.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          {submission.media_type === "photo"
+                            ? "📷 Photo"
+                            : "🎥 Video"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="text-center py-12">
+                <ImageIcon className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h4 className="text-lg font-semibold text-foreground mb-2">
+                  No photos or videos yet
+                </h4>
+                <p className="text-muted-foreground">
+                  Be the first to share a memory!
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

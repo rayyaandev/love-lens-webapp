@@ -147,7 +147,7 @@ export default function PhotosPage() {
                     {submission.media_url ? (
                       <div className="w-full h-full flex items-center justify-center">
                         {submission.media_type === "photo" ? (
-                          <Image
+                          <img
                             src={submission.media_url}
                             alt="Guest submission"
                             className="w-full h-full object-cover"
