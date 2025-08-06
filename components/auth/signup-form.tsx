@@ -9,13 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { SubmitButton } from "../submit-button";
-import { signUpAction } from "@/app/actions";
-import { FormMessage, Message } from "../form-message";
-import { useActionState } from "react";
+import { Message } from "../form-message";
 import { useForm } from "react-hook-form";
 import { useSignUp } from "@/queries/misc";
 import ValidateInput from "../ValidateInput";
@@ -29,11 +24,7 @@ interface SignUpFormProps extends React.ComponentPropsWithoutRef<"div"> {
   searchParams: Message;
 }
 
-export function SignupForm({
-  className,
-  searchParams,
-  ...props
-}: SignUpFormProps) {
+export function SignupForm({ className, ...props }: SignUpFormProps) {
   const { control, handleSubmit } = useForm<FormValues>({
     defaultValues: {
       email: "",
@@ -49,15 +40,19 @@ export function SignupForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle className="text-xl">Hello there</CardTitle>
-          <CardDescription>Create your account</CardDescription>
+      <Card className="bg-card border-border shadow-lg rounded-2xl">
+        <CardHeader className="text-center pb-6">
+          <CardTitle className="text-2xl font-serif text-foreground">
+            Hello there
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Create your account
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="grid gap-6">
-              <div className="grid gap-6">
+              <div className="grid gap-4">
                 <div className="grid gap-2">
                   <ValidateInput
                     control={control}
@@ -98,14 +93,17 @@ export function SignupForm({
                 <Button
                   type="submit"
                   disabled={isPending}
-                  className="bg-blue-600 text-white hover:bg-blue-700"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl font-semibold py-3"
                 >
                   {isPending ? "Signing up..." : "Sign up"}
                 </Button>
               </div>
-              <div className="text-center text-sm">
+              <div className="text-center text-sm text-muted-foreground">
                 Already have an account?{" "}
-                <Link href="/sign-in" className="underline underline-offset-4">
+                <Link
+                  href="/sign-in"
+                  className="text-foreground hover:underline font-medium"
+                >
                   Sign in
                 </Link>
               </div>
@@ -113,7 +111,7 @@ export function SignupForm({
           </form>
         </CardContent>
       </Card>
-      <div className="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-primary  ">
+      <div className="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-foreground transition-colors">
         By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
         and <a href="#">Privacy Policy</a>.
       </div>
