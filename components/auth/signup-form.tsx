@@ -101,7 +101,7 @@ export function SignupForm({ className, ...props }: SignUpFormProps) {
               <div className="text-center text-sm text-muted-foreground">
                 Already have an account?{" "}
                 <Link
-                  href="/sign-in"
+                  href="/auth/login"
                   className="text-foreground hover:underline font-medium"
                 >
                   Sign in

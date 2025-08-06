@@ -11,15 +11,6 @@ export default async function Signup(props: {
 }) {
   const searchParams = await props.searchparams;
 
-  // Handle message display if needed
-  if ("message" in searchParams) {
-    return (
-      <div className="w-full flex-1 flex items-center h-screen sm:max-w-md justify-center gap-2 p-4">
-        <FormMessage message={searchParams} />
-      </div>
-    );
-  }
-
   return (
     // Main container with Love Lens background color
     <div className="flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background">

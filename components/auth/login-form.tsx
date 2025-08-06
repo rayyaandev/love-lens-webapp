@@ -100,7 +100,7 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
           <div className="text-center text-sm mt-4 text-muted-foreground">
             Don&apos;t have an account?{" "}
             <Link
-              href="/sign-up"
+              href="/auth/sign-up"
               className="text-foreground hover:underline font-medium"
             >
               Create one

@@ -55,6 +55,11 @@ const useSignUp = () => {
       const { data: authData, error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
+        options: {
+          data: {
+            userRole: "admin",
+          },
+        },
       });
 
       if (error) {
@@ -67,7 +72,7 @@ const useSignUp = () => {
     onSuccess: (data) => {
       console.log("Signup successful:", data);
       toast.success("Signup successful!");
-      router.push("/sign-in");
+      router.push("/auth/login");
     },
     onError: (error) => {
       console.error("Signup error:", error);
@@ -93,7 +98,7 @@ const useSignOut = () => {
     mutationKey: ["sign-out"],
     mutationFn: signOut,
     onSuccess: () => {
-      window.location.href = "/sign-in";
+      window.location.href = "/auth/login";
 
       queryClient.clear();
     },
