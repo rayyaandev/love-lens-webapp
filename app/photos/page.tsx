@@ -7,7 +7,7 @@ import {
   useApproveSubmission,
   useDeleteSubmission,
 } from "@/queries/booth";
-import { Camera, Video, Check, X, Download, Filter } from "lucide-react";
+import { Camera, Video, Check, X, Download, Filter, Trash } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -222,7 +222,7 @@ export default function PhotosPage() {
                   onClick={handleBulkDelete}
                   disabled={selectedSubmissions.size === 0}
                 >
-                  <X className="w-4 h-4 mr-2" />
+                  <Trash className="w-4 h-4 mr-2" />
                   Delete ({selectedSubmissions.size})
                 </Button>
                 <Button
@@ -423,7 +423,7 @@ export default function PhotosPage() {
                         disabled={deleteSubmission.isPending}
                         className="flex-1"
                       >
-                        <X className="w-3 h-3" />
+                        <Trash className="w-3 h-3" />
                       </Button>
                     </div>
                   </div>

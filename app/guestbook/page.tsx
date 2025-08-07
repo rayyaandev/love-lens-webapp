@@ -14,6 +14,7 @@ import {
   Filter,
   Download,
   FileText,
+  Trash,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -192,37 +193,37 @@ export default function GuestbookPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredSubmissions.map((submission) => (
                 <div
                   key={submission.id}
-                  className="bg-card rounded-lg border border-border p-4"
+                  className="bg-card rounded-lg border border-border overflow-hidden"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-medium text-foreground text-sm">
-                          {submission.guest_name || "Anonymous"}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(submission.created_at).toLocaleDateString()}
-                        </span>
-                        {!submission.is_approved && (
-                          <span className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded">
-                            Pending
-                          </span>
-                        )}
-                      </div>
+                  {/* Message content */}
+                  <div className="p-4 h-48 flex flex-col">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-foreground text-sm truncate">
+                        {submission.guest_name || "Anonymous"}
+                      </span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {new Date(submission.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
 
-                      <div className="max-h-24 overflow-y-auto pr-2">
-                        <p className="text-foreground text-sm leading-relaxed">
-                          {submission.message}
-                        </p>
-                      </div>
+                    {!submission.is_approved && (
+                      <span className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded mb-2 self-start">
+                        Pending
+                      </span>
+                    )}
+
+                    <div className="flex-1 overflow-y-auto pr-2">
+                      <p className="text-foreground text-sm leading-relaxed">
+                        {submission.message}
+                      </p>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1 mt-3 pt-2 border-t border-border">
                       {!submission.is_approved && (
                         <Button
                           size="sm"
@@ -231,7 +232,7 @@ export default function GuestbookPage() {
                             approveSubmission.mutate(submission.id)
                           }
                           disabled={approveSubmission.isPending}
-                          className="h-8 w-8 p-0"
+                          className="h-7 w-7 p-0 flex-1"
                         >
                           <Check className="w-3 h-3" />
                         </Button>
@@ -241,9 +242,9 @@ export default function GuestbookPage() {
                         variant="destructive"
                         onClick={() => deleteSubmission.mutate(submission.id)}
                         disabled={deleteSubmission.isPending}
-                        className="h-8 w-8 p-0"
+                        className="h-7 w-7 p-0 flex-1"
                       >
-                        <X className="w-3 h-3" />
+                        <Trash className="w-3 h-3" />
                       </Button>
                     </div>
                   </div>
