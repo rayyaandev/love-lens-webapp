@@ -145,8 +145,12 @@ export default function BoothPage({ params }: BoothPageProps) {
     setIsSubmitting(true);
 
     try {
+      let hasMedia = false;
+      let submissionCount = 0;
+
       // Upload media files if selected
       if (selectedFiles.length > 0) {
+        hasMedia = true;
         for (const file of selectedFiles) {
           const fileExt = file.name.split(".").pop();
           const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -177,6 +181,7 @@ export default function BoothPage({ params }: BoothPageProps) {
           if (submissionError) {
             throw new Error("Failed to submit message");
           }
+          submissionCount++;
         }
       } else {
         // Create submission without media
@@ -193,6 +198,29 @@ export default function BoothPage({ params }: BoothPageProps) {
 
         if (submissionError) {
           throw new Error("Failed to submit message");
+        }
+        submissionCount = 1;
+      }
+
+      // Send email notification if enabled
+      if (booth.email_notifications && booth.email) {
+        try {
+          await fetch("/api/notify-submission", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              boothOwnerEmail: booth.email,
+              coupleName: booth.couple_name,
+              guestName: formData.guest_name || "Anonymous",
+              message: formData.message,
+              hasMedia: hasMedia,
+            }),
+          });
+        } catch (error) {
+          console.error("Failed to send email notification:", error);
+          // Don't fail the submission if email fails
         }
       }
 
