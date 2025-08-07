@@ -42,10 +42,9 @@ export default function BoothPage({ params }: BoothPageProps) {
     guest_name: "",
     message: "",
   });
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [mediaType, setMediaType] = useState<"photo" | "video">("photo");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,35 +82,58 @@ export default function BoothPage({ params }: BoothPageProps) {
   }
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const newFiles = Array.from(event.target.files || []);
+    if (newFiles.length === 0) return;
 
-    // Check file type
-    const isImage = file.type.startsWith("image/");
-    const isVideo = file.type.startsWith("video/");
+    // Validate all new files
+    for (const file of newFiles) {
+      const isImage = file.type.startsWith("image/");
+      const isVideo = file.type.startsWith("video/");
 
-    if (!isImage && !isVideo) {
-      toast.error("Please select a photo or video file");
-      return;
+      if (!isImage && !isVideo) {
+        toast.error("Please select only photo or video files");
+        return;
+      }
+
+      // if (file.size > 10 * 1024 * 1024) {
+      //   toast.error("Each file must be less than 10MB");
+      //   return;
+      // }
     }
 
-    // Check file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File size must be less than 10MB");
-      return;
+    // Append new files to existing ones
+    const updatedFiles = [...selectedFiles, ...newFiles];
+    setSelectedFiles(updatedFiles);
+
+    // Create preview URLs for new files and add to existing ones
+    const newPreviewUrls = newFiles.map((file) => URL.createObjectURL(file));
+    setPreviewUrls([...previewUrls, ...newPreviewUrls]);
+
+    // Clear the input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
-
-    setSelectedFile(file);
-    setMediaType(isImage ? "photo" : "video");
-
-    // Create preview URL
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
   };
 
-  const removeFile = () => {
-    setSelectedFile(null);
-    setPreviewUrl(null);
+  const removeFile = (indexToRemove: number) => {
+    // Remove the file from selectedFiles
+    const newSelectedFiles = selectedFiles.filter(
+      (_, i) => i !== indexToRemove
+    );
+    setSelectedFiles(newSelectedFiles);
+
+    // Remove the corresponding preview URL and clean it up
+    const urlToRemove = previewUrls[indexToRemove];
+    URL.revokeObjectURL(urlToRemove);
+    const newPreviewUrls = previewUrls.filter((_, i) => i !== indexToRemove);
+    setPreviewUrls(newPreviewUrls);
+  };
+
+  const removeAllFiles = () => {
+    setSelectedFiles([]);
+    // Clean up all preview URLs to prevent memory leaks
+    previewUrls.forEach((url) => URL.revokeObjectURL(url));
+    setPreviewUrls([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -128,47 +150,60 @@ export default function BoothPage({ params }: BoothPageProps) {
     setIsSubmitting(true);
 
     try {
-      let mediaUrl = null;
+      // Upload media files if selected
+      if (selectedFiles.length > 0) {
+        for (const file of selectedFiles) {
+          const fileExt = file.name.split(".").pop();
+          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
-      // Upload media file if selected
-      if (selectedFile) {
-        const fileExt = selectedFile.name.split(".").pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+          const { data: uploadData, error: uploadError } =
+            await supabase.storage.from("guest-media").upload(fileName, file);
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("guest-media")
-          .upload(fileName, selectedFile);
+          if (uploadError) {
+            throw new Error("Failed to upload media file");
+          }
 
-        if (uploadError) {
-          throw new Error("Failed to upload media file");
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("guest-media").getPublicUrl(fileName);
+
+          // Create submission for each file
+          const { error: submissionError } = await supabase
+            .from("guest_submissions")
+            .insert({
+              booth_id: booth.id,
+              guest_name: formData.guest_name || null,
+              message: formData.message,
+              media_url: publicUrl,
+              media_type: file.type.startsWith("image/") ? "photo" : "video",
+              is_approved: !booth.requires_approval, // Auto-approve if not required
+            });
+
+          if (submissionError) {
+            throw new Error("Failed to submit message");
+          }
         }
+      } else {
+        // Create submission without media
+        const { error: submissionError } = await supabase
+          .from("guest_submissions")
+          .insert({
+            booth_id: booth.id,
+            guest_name: formData.guest_name || null,
+            message: formData.message,
+            media_url: null,
+            media_type: null,
+            is_approved: !booth.requires_approval, // Auto-approve if not required
+          });
 
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("guest-media").getPublicUrl(fileName);
-
-        mediaUrl = publicUrl;
-      }
-
-      // Create submission
-      const { error: submissionError } = await supabase
-        .from("guest_submissions")
-        .insert({
-          booth_id: booth.id,
-          guest_name: formData.guest_name || null,
-          message: formData.message,
-          media_url: mediaUrl,
-          media_type: selectedFile ? mediaType : null,
-          is_approved: !booth.requires_approval, // Auto-approve if not required
-        });
-
-      if (submissionError) {
-        throw new Error("Failed to submit message");
+        if (submissionError) {
+          throw new Error("Failed to submit message");
+        }
       }
 
       // Reset form
       setFormData({ guest_name: "", message: "" });
-      removeFile();
+      removeAllFiles();
 
       toast.success(
         booth.requires_approval
@@ -273,7 +308,7 @@ export default function BoothPage({ params }: BoothPageProps) {
                   Upload Photo or Video (Optional)
                 </Label>
                 <div className="mt-2">
-                  {!selectedFile ? (
+                  {!selectedFiles.length ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -283,41 +318,52 @@ export default function BoothPage({ params }: BoothPageProps) {
                       <div className="text-center">
                         <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
                         <p className="text-sm text-muted-foreground">
-                          Click to upload photo or video
+                          Click to upload photos or videos
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Max 10MB
-                        </p>
+                        {/* <p className="text-xs text-muted-foreground mt-1">
+                          Max 10MB per file
+                        </p> */}
                       </div>
                     </Button>
                   ) : (
-                    <div className="relative">
-                      <div className="aspect-video bg-muted rounded-lg overflow-hidden">
-                        {mediaType === "photo" ? (
-                          <Image
-                            src={previewUrl!}
-                            alt="Preview"
-                            width={400}
-                            height={300}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <video
-                            src={previewUrl!}
-                            controls
-                            className="w-full h-full object-cover"
-                          />
-                        )}
+                    <div className="grid grid-cols-2 gap-4">
+                      {previewUrls.map((url, index) => (
+                        <div key={index} className="relative">
+                          <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+                            <Image
+                              src={url}
+                              alt={`Preview ${index + 1}`}
+                              width={200}
+                              height={150}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                            onClick={() => removeFile(index)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+
+                      {/* Add More Button */}
+                      <div className="relative">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full h-full min-h-[150px] border-dashed border-2 border-border hover:border-primary transition-colors flex flex-col items-center justify-center bg-transparent"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Upload className="w-6 h-6 mb-2 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">
+                            Add More
+                          </p>
+                        </Button>
                       </div>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="absolute top-2 right-2"
-                        onClick={removeFile}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
                     </div>
                   )}
                   <input
@@ -326,6 +372,7 @@ export default function BoothPage({ params }: BoothPageProps) {
                     accept="image/*,video/*"
                     onChange={handleFileSelect}
                     className="hidden"
+                    multiple // Allow multiple files
                   />
                 </div>
               </div>
@@ -402,18 +449,12 @@ export default function BoothPage({ params }: BoothPageProps) {
                   >
                     {/* Media Display */}
                     <div className="aspect-square relative group">
-                      {submission.media_type === "photo" ? (
+                      {submission.media_url && (
                         <Image
-                          src={submission.media_url!}
+                          src={submission.media_url}
                           alt={`Photo by ${submission.guest_name || "Anonymous"}`}
                           width={300}
                           height={300}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <video
-                          src={submission.media_url!}
-                          controls
                           className="w-full h-full object-cover"
                         />
                       )}
@@ -424,7 +465,7 @@ export default function BoothPage({ params }: BoothPageProps) {
                           variant="secondary"
                           size="sm"
                           onClick={() => {
-                            const filename = `${submission.guest_name || "anonymous"}-${submission.media_type}-${new Date(submission.created_at).toISOString().split("T")[0]}.${submission.media_url?.split(".").pop()}`;
+                            const filename = `${submission.guest_name || "anonymous"}-${submission.media_url?.split(".").pop()}`;
                             downloadMedia(submission.media_url!, filename);
                           }}
                         >

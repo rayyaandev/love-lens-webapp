@@ -1,7 +1,11 @@
 "use client";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { useUserBooth, useUpdateBooth } from "@/queries/booth";
+import {
+  useUserBooth,
+  useUpdateBooth,
+  useGuestSubmissions,
+} from "@/queries/booth";
 import {
   Heart,
   Copy,
@@ -11,6 +15,7 @@ import {
   Bell,
   Shield,
   Download,
+  Archive,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,13 +24,16 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import QRCode from "qrcode";
+import Image from "next/image";
 
 export default function SettingsPage() {
   const { data: booth, isLoading: boothLoading } = useUserBooth();
+  const { data: submissions } = useGuestSubmissions(booth?.id);
   const updateBooth = useUpdateBooth();
 
   const [isEditing, setIsEditing] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+  const [isDownloading, setIsDownloading] = useState(false);
   const [formData, setFormData] = useState<{
     couple_name: string;
     wedding_date: string;
@@ -130,6 +138,70 @@ export default function SettingsPage() {
     }
   };
 
+  const downloadAllSubmissions = async () => {
+    if (!submissions || submissions.length === 0) {
+      toast.error("No submissions to download");
+      return;
+    }
+
+    setIsDownloading(true);
+
+    try {
+      // Import JSZip dynamically to avoid SSR issues
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      // Filter submissions that have media files
+      const submissionsWithMedia = submissions.filter((sub) => sub.media_url);
+
+      if (submissionsWithMedia.length === 0) {
+        toast.error("No media files to download");
+        return;
+      }
+
+      // Download each media file and add to zip
+      for (const submission of submissionsWithMedia) {
+        try {
+          const response = await fetch(submission.media_url!);
+          const blob = await response.blob();
+
+          // Create filename with guest name and timestamp
+          const guestName = submission.guest_name || "anonymous";
+          const date = new Date(submission.created_at)
+            .toISOString()
+            .split("T")[0];
+          const fileExt = submission.media_url!.split(".").pop();
+          const filename = `${guestName}-${date}-${submission.id}.${fileExt}`;
+
+          zip.file(filename, blob);
+        } catch (error) {
+          console.error(
+            `Failed to download file: ${submission.media_url}`,
+            error
+          );
+        }
+      }
+
+      // Generate and download the zip file
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const url = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${booth.couple_name}-submissions-${new Date().toISOString().split("T")[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`Downloaded ${submissionsWithMedia.length} files!`);
+    } catch (error) {
+      console.error("Failed to create zip file:", error);
+      toast.error("Failed to download submissions");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const handleSave = () => {
     updateBooth.mutate(
       {
@@ -161,7 +233,7 @@ export default function SettingsPage() {
       <AppSidebar />
       <main className="flex-1 flex flex-col bg-background">
         {/* Header */}
-        <header className="flex h-16 items-center justify-between border-b px-6">
+        <header className="flex h-16 items-center justify-between border-b p-6">
           <h1 className="text-xl font-semibold text-foreground">
             Booth Settings
           </h1>
@@ -297,7 +369,9 @@ export default function SettingsPage() {
                   <div className="mt-2 flex items-center gap-4">
                     {qrCodeUrl && (
                       <div className="bg-white p-4 rounded-lg border">
-                        <img
+                        <Image
+                          width={128}
+                          height={128}
                           src={qrCodeUrl}
                           alt="Booth QR Code"
                           className="w-32 h-32"
@@ -319,6 +393,41 @@ export default function SettingsPage() {
                       </p>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Download Submissions */}
+            <div className="bg-card rounded-lg border border-border p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <Archive className="w-5 h-5 text-foreground" />
+                <h2 className="text-lg font-semibold text-foreground">
+                  Download Submissions
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-base font-medium">
+                    All Guest Submissions
+                  </Label>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Download all photos and videos from guest submissions as a
+                    ZIP file
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={downloadAllSubmissions}
+                    disabled={
+                      isDownloading || !submissions || submissions.length === 0
+                    }
+                    className="w-full"
+                  >
+                    <Archive className="w-4 h-4 mr-2" />
+                    {isDownloading
+                      ? "Creating ZIP..."
+                      : "Download All Submissions"}
+                  </Button>
                 </div>
               </div>
             </div>
