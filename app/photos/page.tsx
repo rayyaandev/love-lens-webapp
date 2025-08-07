@@ -30,6 +30,10 @@ export default function PhotosPage() {
     new Set()
   );
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [modalImage, setModalImage] = useState<{
+    url: string;
+    type: string;
+  } | null>(null);
 
   // Filter out submissions without media and apply current filter
   const mediaSubmissions =
@@ -129,6 +133,29 @@ export default function PhotosPage() {
     } catch (error) {
       console.error("Failed to create zip file:", error);
       toast.error("Failed to download submissions");
+    }
+  };
+
+  const downloadSingleFile = async (url: string, submission: any) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+
+      const guestName = submission.guest_name || "anonymous";
+      const date = new Date(submission.created_at).toISOString().split("T")[0];
+      const fileExt = url.split(".").pop();
+      link.download = `${guestName}-${date}-${submission.id}.${fileExt}`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success("Download started!");
+    } catch (error) {
+      toast.error("Failed to download file");
     }
   };
 
@@ -314,11 +341,11 @@ export default function PhotosPage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
               {filteredSubmissions.map((submission) => (
                 <div
                   key={submission.id}
-                  className={`bg-card rounded-lg border border-border overflow-hidden ${
+                  className={`bg-card rounded-lg border border-border overflow-hidden group ${
                     selectedSubmissions.has(submission.id)
                       ? "ring-2 ring-primary"
                       : ""
@@ -326,10 +353,15 @@ export default function PhotosPage() {
                 >
                   {/* Media preview */}
                   <div
-                    className={`aspect-square bg-muted relative group ${isSelectMode ? "cursor-pointer" : ""}`}
+                    className="aspect-[4/3] bg-muted relative cursor-pointer"
                     onClick={() => {
                       if (isSelectMode) {
                         handleSelectSubmission(submission.id);
+                      } else if (submission.media_url) {
+                        setModalImage({
+                          url: submission.media_url,
+                          type: submission.media_type || "photo",
+                        });
                       }
                     }}
                   >
@@ -339,8 +371,8 @@ export default function PhotosPage() {
                           <Image
                             src={submission.media_url}
                             alt="Guest submission"
-                            width={300}
-                            height={300}
+                            width={150}
+                            height={112}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -354,21 +386,21 @@ export default function PhotosPage() {
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         {submission.media_type === "photo" ? (
-                          <Camera className="w-12 h-12 text-muted-foreground" />
+                          <Camera className="w-8 h-8 text-muted-foreground" />
                         ) : (
-                          <Video className="w-12 h-12 text-muted-foreground" />
+                          <Video className="w-8 h-8 text-muted-foreground" />
                         )}
                       </div>
                     )}
 
                     {/* Selection checkbox */}
                     {isSelectMode && (
-                      <div className="absolute top-2 left-2 z-10">
+                      <div className="absolute top-1 left-1 z-10">
                         <input
                           type="checkbox"
                           checked={selectedSubmissions.has(submission.id)}
                           onChange={() => handleSelectSubmission(submission.id)}
-                          className="w-4 h-4 text-primary bg-background border-gray-300 rounded focus:ring-primary focus:ring-2"
+                          className="w-3 h-3 text-primary bg-background border-gray-300 rounded focus:ring-primary focus:ring-1"
                           id="selection-mode"
                         />
                       </div>
@@ -376,55 +408,67 @@ export default function PhotosPage() {
 
                     {/* Approval status badge */}
                     {!submission.is_approved && (
-                      <div className="absolute top-2 right-2 bg-orange-500 text-white px-2 py-1 rounded text-xs font-medium">
+                      <div className="absolute top-1 right-1 bg-orange-500 text-white px-1 py-0.5 rounded text-xs font-medium">
                         Pending
                       </div>
                     )}
-                  </div>
 
-                  {/* Submission details */}
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-foreground">
-                        {submission.guest_name || "Anonymous"}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(submission.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                      {submission.message}
-                    </p>
-
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-2">
+                    {/* Hover overlay with action buttons */}
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       {submission.media_url && (
-                        <Button size="sm" variant="outline" className="flex-1">
-                          <Download className="w-3 h-3" />
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadSingleFile(
+                              submission.media_url!,
+                              submission
+                            );
+                          }}
+                        >
+                          <Download className="w-4 h-4" />
                         </Button>
                       )}
                       {!submission.is_approved && (
                         <Button
                           size="sm"
                           variant="default"
-                          onClick={() =>
-                            approveSubmission.mutate(submission.id)
-                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            approveSubmission.mutate(submission.id);
+                          }}
                           disabled={approveSubmission.isPending}
-                          className="flex-1"
+                          className="h-8 w-8 p-0"
                         >
-                          <Check className="w-3 h-3" />
+                          <Check className="w-4 h-4" />
                         </Button>
                       )}
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => deleteSubmission.mutate(submission.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteSubmission.mutate(submission.id);
+                        }}
                         disabled={deleteSubmission.isPending}
-                        className="flex-1"
+                        className="h-8 w-8 p-0"
                       >
-                        <Trash className="w-3 h-3" />
+                        <Trash className="w-4 h-4" />
                       </Button>
+                    </div>
+                  </div>
+
+                  {/* Submission details */}
+                  <div className="p-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-foreground text-xs truncate">
+                        {submission.guest_name || "Anonymous"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(submission.created_at).toLocaleDateString()}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -433,6 +477,41 @@ export default function PhotosPage() {
           )}
         </div>
       </main>
+
+      {/* Image Modal */}
+      {modalImage && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setModalImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-full">
+            <button
+              onClick={() => setModalImage(null)}
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors z-10"
+            >
+              <X className="w-8 h-8" />
+            </button>
+
+            <div className="bg-white rounded-lg overflow-hidden shadow-2xl">
+              {modalImage.type === "photo" ? (
+                <Image
+                  src={modalImage.url}
+                  alt="Full size image"
+                  width={800}
+                  height={600}
+                  className="max-w-full max-h-[80vh] object-contain"
+                />
+              ) : (
+                <video
+                  src={modalImage.url}
+                  controls
+                  className="max-w-full max-h-[80vh]"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
