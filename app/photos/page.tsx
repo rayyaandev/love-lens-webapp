@@ -238,20 +238,16 @@ export default function PhotosPage() {
               </>
             )}
 
-            {/* Select mode toggle */}
-            {!isSelectMode && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsSelectMode(true)}
-              >
-                Select Multiple
-              </Button>
-            )}
-
-            {/* Filter buttons */}
+            {/* Select mode toggle and filter buttons */}
             {!isSelectMode && (
               <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSelectMode(true)}
+                >
+                  Select Multiple
+                </Button>
                 <Filter className="w-4 h-4 text-muted-foreground" />
                 <Button
                   variant={filter === "all" ? "default" : "outline"}
@@ -328,20 +324,15 @@ export default function PhotosPage() {
                       : ""
                   }`}
                 >
-                  {/* Selection checkbox */}
-                  {isSelectMode && (
-                    <div className="absolute top-2 left-2 z-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedSubmissions.has(submission.id)}
-                        onChange={() => handleSelectSubmission(submission.id)}
-                        className="w-4 h-4 text-primary bg-background border-gray-300 rounded focus:ring-primary focus:ring-2"
-                      />
-                    </div>
-                  )}
-
                   {/* Media preview */}
-                  <div className="aspect-square bg-muted relative group">
+                  <div
+                    className={`aspect-square bg-muted relative group ${isSelectMode ? "cursor-pointer" : ""}`}
+                    onClick={() => {
+                      if (isSelectMode) {
+                        handleSelectSubmission(submission.id);
+                      }
+                    }}
+                  >
                     {submission.media_url ? (
                       <div className="w-full h-full flex items-center justify-center">
                         {submission.media_type === "photo" ? (
@@ -370,34 +361,16 @@ export default function PhotosPage() {
                       </div>
                     )}
 
-                    {/* Overlay actions - only show when not in select mode */}
-                    {!isSelectMode && (
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        {submission.media_url && (
-                          <Button size="sm" variant="secondary">
-                            <Download className="w-4 h-4" />
-                          </Button>
-                        )}
-                        {!submission.is_approved && (
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() =>
-                              approveSubmission.mutate(submission.id)
-                            }
-                            disabled={approveSubmission.isPending}
-                          >
-                            <Check className="w-4 h-4" />
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => deleteSubmission.mutate(submission.id)}
-                          disabled={deleteSubmission.isPending}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
+                    {/* Selection checkbox */}
+                    {isSelectMode && (
+                      <div className="absolute top-2 left-2 z-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedSubmissions.has(submission.id)}
+                          onChange={() => handleSelectSubmission(submission.id)}
+                          className="w-4 h-4 text-primary bg-background border-gray-300 rounded focus:ring-primary focus:ring-2"
+                          id="selection-mode"
+                        />
                       </div>
                     )}
 
@@ -419,9 +392,40 @@ export default function PhotosPage() {
                         {new Date(submission.created_at).toLocaleDateString()}
                       </span>
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
+                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
                       {submission.message}
                     </p>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-2">
+                      {submission.media_url && (
+                        <Button size="sm" variant="outline" className="flex-1">
+                          <Download className="w-3 h-3" />
+                        </Button>
+                      )}
+                      {!submission.is_approved && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() =>
+                            approveSubmission.mutate(submission.id)
+                          }
+                          disabled={approveSubmission.isPending}
+                          className="flex-1"
+                        >
+                          <Check className="w-3 h-3" />
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => deleteSubmission.mutate(submission.id)}
+                        disabled={deleteSubmission.isPending}
+                        className="flex-1"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
