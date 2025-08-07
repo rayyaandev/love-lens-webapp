@@ -11,6 +11,7 @@ import { Camera, Video, Check, X, Download, Filter } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
+import { toast } from "sonner";
 
 export default function PhotosPage() {
   const { data: booth, isLoading: boothLoading } = useUserBooth();
@@ -25,6 +26,111 @@ export default function PhotosPage() {
   const [selectedSubmission, setSelectedSubmission] = useState<string | null>(
     null
   );
+  const [selectedSubmissions, setSelectedSubmissions] = useState<Set<string>>(
+    new Set()
+  );
+  const [isSelectMode, setIsSelectMode] = useState(false);
+
+  // Filter out submissions without media and apply current filter
+  const mediaSubmissions =
+    submissions?.filter((submission) => submission.media_url) || [];
+
+  const filteredSubmissions = mediaSubmissions.filter((submission) => {
+    if (filter === "photo") return submission.media_type === "photo";
+    if (filter === "video") return submission.media_type === "video";
+    if (filter === "pending") return !submission.is_approved;
+    return true;
+  });
+
+  const handleSelectSubmission = (submissionId: string) => {
+    const newSelected = new Set(selectedSubmissions);
+    if (newSelected.has(submissionId)) {
+      newSelected.delete(submissionId);
+    } else {
+      newSelected.add(submissionId);
+    }
+    setSelectedSubmissions(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedSubmissions.size === filteredSubmissions.length) {
+      setSelectedSubmissions(new Set());
+    } else {
+      setSelectedSubmissions(new Set(filteredSubmissions.map((s) => s.id)));
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    const pendingSubmissions = filteredSubmissions.filter(
+      (s) => selectedSubmissions.has(s.id) && !s.is_approved
+    );
+
+    for (const submission of pendingSubmissions) {
+      await approveSubmission.mutateAsync(submission.id);
+    }
+    setSelectedSubmissions(new Set());
+    setIsSelectMode(false);
+  };
+
+  const handleBulkDelete = async () => {
+    const submissionsToDelete = filteredSubmissions.filter((s) =>
+      selectedSubmissions.has(s.id)
+    );
+
+    for (const submission of submissionsToDelete) {
+      await deleteSubmission.mutateAsync(submission.id);
+    }
+    setSelectedSubmissions(new Set());
+    setIsSelectMode(false);
+  };
+
+  const handleBulkDownload = async () => {
+    const submissionsToDownload = filteredSubmissions.filter(
+      (s) => selectedSubmissions.has(s.id) && s.media_url
+    );
+
+    try {
+      // Import JSZip dynamically
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      for (const submission of submissionsToDownload) {
+        try {
+          const response = await fetch(submission.media_url!);
+          const blob = await response.blob();
+
+          const guestName = submission.guest_name || "anonymous";
+          const date = new Date(submission.created_at)
+            .toISOString()
+            .split("T")[0];
+          const fileExt = submission.media_url!.split(".").pop();
+          const filename = `${guestName}-${date}-${submission.id}.${fileExt}`;
+
+          zip.file(filename, blob);
+        } catch (error) {
+          console.error(
+            `Failed to download file: ${submission.media_url}`,
+            error
+          );
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const url = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `selected-submissions-${new Date().toISOString().split("T")[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`Downloaded ${submissionsToDownload.length} files!`);
+    } catch (error) {
+      console.error("Failed to create zip file:", error);
+      toast.error("Failed to download submissions");
+    }
+  };
 
   if (boothLoading) {
     return (
@@ -59,14 +165,6 @@ export default function PhotosPage() {
     );
   }
 
-  const filteredSubmissions =
-    submissions?.filter((submission) => {
-      if (filter === "photo") return submission.media_type === "photo";
-      if (filter === "video") return submission.media_type === "video";
-      if (filter === "pending") return !submission.is_approved;
-      return true;
-    }) || [];
-
   return (
     <div className="flex h-screen">
       <AppSidebar />
@@ -77,41 +175,125 @@ export default function PhotosPage() {
             Photos & Videos
           </h1>
 
-          {/* Filter buttons */}
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <Button
-              variant={filter === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter("all")}
-            >
-              All ({submissions?.length || 0})
-            </Button>
-            <Button
-              variant={filter === "photo" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter("photo")}
-            >
-              Photos (
-              {submissions?.filter((s) => s.media_type === "photo").length || 0}
-              )
-            </Button>
-            <Button
-              variant={filter === "video" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter("video")}
-            >
-              Videos (
-              {submissions?.filter((s) => s.media_type === "video").length || 0}
-              )
-            </Button>
-            <Button
-              variant={filter === "pending" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilter("pending")}
-            >
-              Pending ({submissions?.filter((s) => !s.is_approved).length || 0})
-            </Button>
+            {/* Multi-select controls */}
+            {isSelectMode && (
+              <>
+                <Button variant="outline" size="sm" onClick={handleSelectAll}>
+                  {selectedSubmissions.size === filteredSubmissions.length
+                    ? "Deselect All"
+                    : "Select All"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkApprove}
+                  disabled={
+                    !Array.from(selectedSubmissions).some((id) =>
+                      filteredSubmissions.find(
+                        (s) => s.id === id && !s.is_approved
+                      )
+                    )
+                  }
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Approve (
+                  {
+                    Array.from(selectedSubmissions).filter((id) =>
+                      filteredSubmissions.find(
+                        (s) => s.id === id && !s.is_approved
+                      )
+                    ).length
+                  }
+                  )
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkDownload}
+                  disabled={selectedSubmissions.size === 0}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download ({selectedSubmissions.size})
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={selectedSubmissions.size === 0}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Delete ({selectedSubmissions.size})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsSelectMode(false);
+                    setSelectedSubmissions(new Set());
+                  }}
+                >
+                  Cancel
+                </Button>
+              </>
+            )}
+
+            {/* Select mode toggle */}
+            {!isSelectMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsSelectMode(true)}
+              >
+                Select Multiple
+              </Button>
+            )}
+
+            {/* Filter buttons */}
+            {!isSelectMode && (
+              <>
+                <Filter className="w-4 h-4 text-muted-foreground" />
+                <Button
+                  variant={filter === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("all")}
+                >
+                  All ({mediaSubmissions.length})
+                </Button>
+                <Button
+                  variant={filter === "photo" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("photo")}
+                >
+                  Photos (
+                  {
+                    mediaSubmissions.filter((s) => s.media_type === "photo")
+                      .length
+                  }
+                  )
+                </Button>
+                <Button
+                  variant={filter === "video" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("video")}
+                >
+                  Videos (
+                  {
+                    mediaSubmissions.filter((s) => s.media_type === "video")
+                      .length
+                  }
+                  )
+                </Button>
+                <Button
+                  variant={filter === "pending" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter("pending")}
+                >
+                  Pending (
+                  {mediaSubmissions.filter((s) => !s.is_approved).length})
+                </Button>
+              </>
+            )}
           </div>
         </header>
 
@@ -140,16 +322,34 @@ export default function PhotosPage() {
               {filteredSubmissions.map((submission) => (
                 <div
                   key={submission.id}
-                  className="bg-card rounded-lg border border-border overflow-hidden"
+                  className={`bg-card rounded-lg border border-border overflow-hidden ${
+                    selectedSubmissions.has(submission.id)
+                      ? "ring-2 ring-primary"
+                      : ""
+                  }`}
                 >
+                  {/* Selection checkbox */}
+                  {isSelectMode && (
+                    <div className="absolute top-2 left-2 z-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedSubmissions.has(submission.id)}
+                        onChange={() => handleSelectSubmission(submission.id)}
+                        className="w-4 h-4 text-primary bg-background border-gray-300 rounded focus:ring-primary focus:ring-2"
+                      />
+                    </div>
+                  )}
+
                   {/* Media preview */}
                   <div className="aspect-square bg-muted relative group">
                     {submission.media_url ? (
                       <div className="w-full h-full flex items-center justify-center">
                         {submission.media_type === "photo" ? (
-                          <img
+                          <Image
                             src={submission.media_url}
                             alt="Guest submission"
+                            width={300}
+                            height={300}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -170,38 +370,40 @@ export default function PhotosPage() {
                       </div>
                     )}
 
-                    {/* Overlay actions */}
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      {submission.media_url && (
-                        <Button size="sm" variant="secondary">
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      )}
-                      {!submission.is_approved && (
+                    {/* Overlay actions - only show when not in select mode */}
+                    {!isSelectMode && (
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        {submission.media_url && (
+                          <Button size="sm" variant="secondary">
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {!submission.is_approved && (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() =>
+                              approveSubmission.mutate(submission.id)
+                            }
+                            disabled={approveSubmission.isPending}
+                          >
+                            <Check className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button
                           size="sm"
-                          variant="default"
-                          onClick={() =>
-                            approveSubmission.mutate(submission.id)
-                          }
-                          disabled={approveSubmission.isPending}
+                          variant="destructive"
+                          onClick={() => deleteSubmission.mutate(submission.id)}
+                          disabled={deleteSubmission.isPending}
                         >
-                          <Check className="w-4 h-4" />
+                          <X className="w-4 h-4" />
                         </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => deleteSubmission.mutate(submission.id)}
-                        disabled={deleteSubmission.isPending}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
+                      </div>
+                    )}
 
                     {/* Approval status badge */}
                     {!submission.is_approved && (
-                      <div className="absolute top-2 left-2 bg-orange-500 text-white px-2 py-1 rounded text-xs font-medium">
+                      <div className="absolute top-2 right-2 bg-orange-500 text-white px-2 py-1 rounded text-xs font-medium">
                         Pending
                       </div>
                     )}

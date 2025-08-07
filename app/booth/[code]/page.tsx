@@ -142,11 +142,6 @@ export default function BoothPage({ params }: BoothPageProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.message.trim()) {
-      toast.error("Please write a message");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -408,7 +403,6 @@ export default function BoothPage({ params }: BoothPageProps) {
                   }
                   placeholder="Write your message here..."
                   rows={4}
-                  required
                   className="mt-1"
                 />
               </div>
