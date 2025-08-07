@@ -59,7 +59,7 @@ export default function DashboardPage() {
       <AppSidebar />
       <main className="flex-1 flex flex-col bg-background">
         {/* Header */}
-        <header className="flex h-16 items-center gap-2 border-b px-6">
+        <header className="flex h-16 items-center gap-2 border-b p-6">
           <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
         </header>
 
