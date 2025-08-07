@@ -63,6 +63,9 @@ export default function GuestbookPage() {
 
   const filteredSubmissions =
     submissions?.filter((submission) => {
+      // Only show submissions with messages
+      if (!submission.message || submission.message.trim() === "") return false;
+
       // Filter by approval status
       if (filter === "approved" && !submission.is_approved) return false;
       if (filter === "pending" && submission.is_approved) return false;
@@ -80,12 +83,15 @@ export default function GuestbookPage() {
     }) || [];
 
   const exportMessages = () => {
-    const approvedMessages = submissions?.filter((s) => s.is_approved) || [];
+    const approvedMessages =
+      submissions?.filter(
+        (s) => s.is_approved && s.message && s.message.trim() !== ""
+      ) || [];
     const csvContent = [
-      "Guest Name,Message,Date,Media Type",
+      "Guest Name,Message,Date",
       ...approvedMessages.map(
         (s) =>
-          `"${s.guest_name || "Anonymous"}","${s.message.replace(/"/g, '""')}","${new Date(s.created_at).toLocaleDateString()}","${s.media_type || "text only"}"`
+          `"${s.guest_name || "Anonymous"}","${s.message.replace(/"/g, '""')}","${new Date(s.created_at).toLocaleDateString()}"`
       ),
     ].join("\n");
 
@@ -97,6 +103,10 @@ export default function GuestbookPage() {
     a.click();
     window.URL.revokeObjectURL(url);
   };
+
+  // Get submissions with messages for counters
+  const submissionsWithMessages =
+    submissions?.filter((s) => s.message && s.message.trim() !== "") || [];
 
   return (
     <div className="flex h-screen">
@@ -137,7 +147,7 @@ export default function GuestbookPage() {
                 size="sm"
                 onClick={() => setFilter("all")}
               >
-                All ({submissions?.length || 0})
+                All ({submissionsWithMessages.length})
               </Button>
               <Button
                 variant={filter === "approved" ? "default" : "outline"}
@@ -145,7 +155,7 @@ export default function GuestbookPage() {
                 onClick={() => setFilter("approved")}
               >
                 Approved (
-                {submissions?.filter((s) => s.is_approved).length || 0})
+                {submissionsWithMessages.filter((s) => s.is_approved).length})
               </Button>
               <Button
                 variant={filter === "pending" ? "default" : "outline"}
@@ -153,14 +163,14 @@ export default function GuestbookPage() {
                 onClick={() => setFilter("pending")}
               >
                 Pending (
-                {submissions?.filter((s) => !s.is_approved).length || 0})
+                {submissionsWithMessages.filter((s) => !s.is_approved).length})
               </Button>
             </div>
           </div>
         </div>
 
         {/* Main content */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-6 overflow-y-auto">
           {submissionsLoading ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-muted-foreground">Loading messages...</div>
@@ -182,58 +192,37 @@ export default function GuestbookPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {filteredSubmissions.map((submission) => (
                 <div
                   key={submission.id}
-                  className="bg-card rounded-lg border border-border p-6"
+                  className="bg-card rounded-lg border border-border p-4"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className="font-semibold text-foreground">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-medium text-foreground text-sm">
                           {submission.guest_name || "Anonymous"}
                         </span>
-                        <span className="text-sm text-muted-foreground">
-                          {new Date(submission.created_at).toLocaleDateString()}{" "}
-                          at{" "}
-                          {new Date(submission.created_at).toLocaleTimeString()}
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(submission.created_at).toLocaleDateString()}
                         </span>
-                        {submission.media_type && (
-                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                            {submission.media_type === "photo"
-                              ? "📷 Photo"
-                              : "🎥 Video"}
-                          </span>
-                        )}
                         {!submission.is_approved && (
-                          <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
-                            Pending Approval
+                          <span className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded">
+                            Pending
                           </span>
                         )}
                       </div>
 
-                      <p className="text-foreground leading-relaxed mb-4">
-                        {submission.message}
-                      </p>
-
-                      {submission.media_url && (
-                        <div className="mb-4">
-                          <a
-                            href={submission.media_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                          >
-                            <FileText className="w-4 h-4" />
-                            View attached media
-                          </a>
-                        </div>
-                      )}
+                      <div className="max-h-24 overflow-y-auto pr-2">
+                        <p className="text-foreground text-sm leading-relaxed">
+                          {submission.message}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 ml-4">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       {!submission.is_approved && (
                         <Button
                           size="sm"
@@ -242,8 +231,9 @@ export default function GuestbookPage() {
                             approveSubmission.mutate(submission.id)
                           }
                           disabled={approveSubmission.isPending}
+                          className="h-8 w-8 p-0"
                         >
-                          <Check className="w-4 h-4" />
+                          <Check className="w-3 h-3" />
                         </Button>
                       )}
                       <Button
@@ -251,8 +241,9 @@ export default function GuestbookPage() {
                         variant="destructive"
                         onClick={() => deleteSubmission.mutate(submission.id)}
                         disabled={deleteSubmission.isPending}
+                        className="h-8 w-8 p-0"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3 h-3" />
                       </Button>
                     </div>
                   </div>
