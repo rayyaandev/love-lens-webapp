@@ -6,10 +6,8 @@ import { Heart } from "lucide-react";
  * Sign-up page component
  * Styled to match Love Lens design language
  */
-export default async function Signup(props: {
-  searchparams: Promise<Message>;
-}) {
-  const searchParams = await props.searchparams;
+async function Signup(props: { searchParams: Promise<Message> }) {
+  const searchParams = await props.searchParams;
 
   return (
     // Main container with Love Lens background color
@@ -36,3 +34,4 @@ export default async function Signup(props: {
     </div>
   );
 }
+export default Signup;

@@ -6,8 +6,8 @@ import { Heart } from "lucide-react";
  * Sign-in page component
  * Styled to match Love Lens design language
  */
-export default async function Login(props: { searchparams: Promise<Message> }) {
-  const searchParams = await props.searchparams;
+async function Login({ searchParams }: { searchParams: Promise<Message> }) {
+  const params = await searchParams;
   return (
     <div className="flex min-h-svh w-full flex-col items-center justify-center p-6 md:p-10 bg-background">
       <div className="flex w-full max-w-md flex-col gap-6">
@@ -36,7 +36,7 @@ export default async function Login(props: { searchparams: Promise<Message> }) {
               Access your Love Lens account
             </p>
           </div>
-          <LoginForm searchParams={searchParams} />
+          <LoginForm searchParams={params} />
         </div>
 
         <div className="text-center text-xs text-muted-foreground">
@@ -54,3 +54,5 @@ export default async function Login(props: { searchparams: Promise<Message> }) {
     </div>
   );
 }
+
+export default Login;
